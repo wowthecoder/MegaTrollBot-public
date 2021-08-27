@@ -2,11 +2,13 @@ import youtube_dl
 import discord
 import ctypes
 import ctypes.util
+from copy import deepcopy
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
     'restrictfilenames': True,
-    'noplaylist': True,
+    'playliststart': 1,
+    'playlistend': 1,
     'nocheckcertificate': True,
     'ignoreerrors': False,
     'logtostderr': False,
@@ -42,26 +44,40 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.url = ""
 
     @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
+    async def from_url(cls, url, *, loop=None):
         loop = loop or asyncio.get_event_loop()
         if not url.startswith("https://"):
             #url = "https://youtu.be/" + ytdl.extract_info(f"ytsearch:{url}", download=False)['entries'][0]['id'] 
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"ytsearch:{url}", download=False))
         else:
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
-        if 'entries' in data:
-            #take first item from a playlist
-            #playlist is in the form of a dictionary, eg. data = {'entries': [all the song names here]}
-            data = data['entries'][0]
         audio_url = data["formats"][0]["url"]
-        audio_name = data['title'] + " - " + data['uploader']
+        audio_ytid = data["id"]
         audio_duration = data['duration']
         #filename = ytdl.prepare_filename(data)
         #return filename
-        return [audio_url, audio_name, audio_duration]
-
+        return [audio_url, data['title'], data['uploader'], audio_ytid, audio_duration]
+        
     @classmethod
-    async def fun_video(cls, query, *, loop=None, stream=False):
+    async def song_from_playlist(cls, url, index, loop=None):
+        playlist_format_options = deepcopy(ytdl_format_options)
+        playlist_format_options["playliststart"] = index
+        playlist_format_options["playlistend"] = index
+        custom_ytdl = youtube_dl.YoutubeDL(playlist_format_options)
+        data = custom_ytdl.extract_info(url, download=False)
+        if len(data["entries"]) == 0:
+            return False
+        else:
+            song = data["entries"][0]
+            audio_url = song["formats"][0]["url"]
+            audio_name = song["title"]
+            audio_artist = song["uploader"]
+            audio_ytid = song["id"]
+            audio_duration = song["duration"]
+            return [audio_url, audio_name, audio_artist, audio_ytid, audio_duration]
+    
+    @classmethod
+    async def fun_video(cls, query, *, loop=None):
         video_info = ytdl.extract_info(f"ytsearch:{query}", download=False)['entries'][0]
         video_id = video_info['id']
         video_name = video_info['title']

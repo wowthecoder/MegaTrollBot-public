@@ -2,9 +2,9 @@ import asyncpraw
 import asyncio
 import random
 
-reddit = asyncpraw.Reddit(client_id='Your client ID here',
-                     client_secret='Your client secret here',
-                     user_agent='[project_name] by [reddit_username]',)
+reddit = asyncpraw.Reddit(client_id='your client id here',
+                     client_secret='your client secret here',
+                     user_agent='your user agent here',)
 
 class Reddit_DL():
 

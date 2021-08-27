@@ -6,23 +6,18 @@ import reddit_dl
 import googlesearch
 import ctypes
 import ctypes.util
-from googletrans import Translator
-import json
+from typing import Union
 
 class Fun(commands.Cog):
     description = "" #description for this category
     quotes = []
     flash_quotes = []
     puns = []
-    gtrans_langs = {}
 
     def __init__(self, bot):
         self.bot = bot
-        self.translator = Translator()
-        file = open("gtrans_languages.json", encoding="utf-8")
-        Fun.gtrans_langs = json.load(file)
     
-    @commands.command(name="search", brief="-mtb search <query>", description="Handy tool to help you search up anything!")
+    @commands.command(name="search", brief="search <query>", description="Handy tool to help you search up anything!")
     async def search(self, ctx, term, *more_terms):
         try: 
             query = term
@@ -35,7 +30,7 @@ class Fun(commands.Cog):
             print(e)
             await ctx.send("I am busy now, please try again later.")
 
-    @commands.command(name="quote", brief="-mtb quote", description="Random quotes from random people to keep you motivated(I hope).")
+    @commands.command(name="quote", brief="quote", description="Random quotes from random people to keep you motivated(I hope).")
     async def quote(self, ctx):
         y = randint(0, len(Fun.quotes)-1)
         sentence = Fun.quotes[y]
@@ -53,7 +48,7 @@ class Fun(commands.Cog):
         await ctx.send(embed=quote_embed)
         #await ctx.send(q + "\n" + "**" + author + "**")
 
-    @commands.command(name="flashquote", brief="-mtb flashquote", description="Generates a random quote from the CW Flash TV show. Go watch it people, it's nice!")
+    @commands.command(name="flashquote", brief="flashquote", description="Generates a random quote from the CW Flash TV show. Go watch it people, it's nice!")
     async def flashquote(self, ctx):
         x = randint(0, len(Fun.flash_quotes)-1)
         sentence = Fun.flash_quotes[x]
@@ -71,7 +66,7 @@ class Fun(commands.Cog):
         await ctx.send(embed=quote_embed)
         #await ctx.send(q + "\n" + "**" + author + "**")
 
-    @commands.command(name="meme", brief="-mtb meme", description="Generates random memes from Reddit!")
+    @commands.command(name="meme", brief="meme", description="Generates random memes from Reddit!")
     async def meme(self, ctx):
         async with ctx.typing():
             meme_info = await reddit_dl.Reddit_DL.find_post_from_subreddit("memes")
@@ -85,7 +80,7 @@ class Fun(commands.Cog):
         meme_embed.set_footer(text=f"👍 {meme_info[3]} 💬 {meme_info[4]}")
         await ctx.send(embed=meme_embed)
 
-    @commands.command(name="pun", brief="-mtb pun", description="Generates a random pun!")
+    @commands.command(name="pun", brief="pun", description="Generates a random pun!")
     async def pun(self, ctx):
         choice = randint(1,4)
         if choice < 4:
@@ -104,7 +99,7 @@ class Fun(commands.Cog):
             pun_embed.set_footer(text=f"👍 {pun_info[3]} 💬 {pun_info[4]}")
             await ctx.send(embed=pun_embed)
 
-    @commands.command(name="video", brief="-mtb video <query>/<link>", description="Outputs a link redirecting to the video.\nSurprise!")
+    @commands.command(name="video", brief="video <query>/<link>", description="Outputs a link redirecting to the video.\nSurprise!")
     async def video(self, ctx, query, *words):
         for w in words:
             query += (" " + w)
@@ -118,40 +113,100 @@ class Fun(commands.Cog):
         video_box.set_image(url=f"https://img.youtube.com/vi/{video_info[0]}/0.jpg")
         await ctx.send(embed=video_box)
     
-    @commands.command(name="sendmsg", brief="-mtb sendmsg <@user> <message>", description="Sends the specified user a message. Lovely surprise!")
-    async def sendmsg(self, ctx, user=None, *, message=None):
+    @commands.command(name="sendmsg", brief="sendmsg <@user> <message>", description="Sends the specified user a message. Lovely surprise!")
+    async def sendmsg(self, ctx, user: discord.Member = None, *, message=None):
+
         if user is None:
             await ctx.send("Well, who you want me to send the message to?")
         elif message is None:
             await ctx.send("What is the message you are sending?")
         else: 
-            if isinstance(user, str) and user.isnumeric():
-                user = await self.bot.fetch_user(int(user))
-                print(user)
             color_code = randint(0, 0xffffff)
             msg_embed = discord.Embed(color=color_code)
             msg_embed.add_field(name=f"{ctx.author} sent you:", value=f"{message}")
             await user.send(embed=msg_embed)
-            
-    @commands.command(name="translate", brief="-mtb translate <message>", description="Translate a message of any language to english. Handy tool isn't it?")
-    async def translate(self, ctx, *, msg:str):
-        if len(msg) >= 5000:
-            ctx.send("Hey I can't translate a message that long, please summarise what you wanna say")
-        async with ctx.typing():
-            translation = self.translator.translate(msg)
-            translated_text = translation.text
-            if translation.src in Fun.gtrans_langs:
-                source_lang = Fun.gtrans_langs[translation.src]["name"]
-            else:
-                print("Unknown language code:", translation.src)
-                source_lang = "Unknown"
-        translate_box = discord.Embed(
-            title="Google Translate",
-            color=discord.Color.blue(),
+            await ctx.send("Message sent!")
+        
+    @sendmsg.error
+    async def sendmsg_error(self, ctx, error):
+        if isinstance(error, commands.BadArgument):
+            await ctx.send("Hey you need to give me a user to send the message to, not a random line of text.")
+    
+    @commands.command(name="bigavatar", aliases=["biga"], brief="bigavatar [@user]", description="Enlarges the avatar of the specified user. Default user is the message author.")
+    async def bigavatar(self, ctx, user: discord.Member=None):
+        if user is None:
+            user = ctx.message.author
+        color_code = randint(0, 0xffffff)
+        imagebox = discord.Embed(
+            title=f"{user.name}'s Avatar",
+            color = color_code,
+        )  
+        imagebox.set_image(url=user.avatar_url)
+        imagebox.set_footer(text="What a nab")
+        await ctx.send(embed=imagebox)
+        
+    @commands.command(name="bigemoji", aliases=["bige"], brief="bigemoji <emoji>", description="Enlarges the emoji. Simple and nice!")
+    async def bigemoji(self, ctx, emoji: Union[discord.Emoji, discord.PartialEmoji]):
+        color_code = randint(0, 0xffffff)
+        emojibox = discord.Embed(
+            title = f"Enlarged emoji: {emoji.name}",
+            color = color_code,
         )
-        translate_box.add_field(name=f"Source language: {source_lang}", value=translated_text)
-        translate_box.set_footer(text="Yay it works")
-        await ctx.send(embed=translate_box)
+        emojibox.set_image(url=emoji.url)
+        emojibox.set_footer(text=f"Requested by: {ctx.message.author}")
+        await ctx.send(embed=emojibox)
+    
+    @commands.command(name="penis", aliases = ["pp"], brief="penis [@user]", description="Shows how long the user's penis is. Default user is yourself.\nGet EXPOSED!")
+    async def penis(self, ctx, user: discord.Member=None):
+        if user is None:
+            user = ctx.message.author
+        rare_chance = randint(1, 9)
+        if rare_chance == 1:
+            penis_length = randint(35, 40)
+        elif rare_chance == 2:
+            penis_length = 0
+        elif rare_chance <= 4:
+            penis_length = randint(16, 20)
+        else:
+            penis_length = randint(1, 15)
+        
+        penis_description = ""
+        footer = ""
+        if penis_length == 0:
+            penis_description = "NON-EXISTENT"
+            footer = "OOF EXPOSED"
+        elif penis_length <= 2:
+            penis_description = "VERY SHORT"
+            footer = "LMAO get rekt"
+        elif penis_length <= 5:
+            penis_description = "SHORT"
+            footer = "Lame but not too lame"
+        elif penis_length <= 10:
+            penis_description = "ORDINARY"
+            footer = "Nothing special here, just another ordinary guy"
+        elif penis_length <= 15:
+            penis_description = "LONG"
+            footer = "SHEEEEESH what a dick"
+        elif penis_length <= 20:
+            penis_description = "EXTREMELY LONG"
+            footer = "Alpha male indeed"
+        else: #30
+            penis_description = "ABSOLUTELY MIND-BLOWINGLY LONG"
+            footer = "YOU BROKE THE WORLD RECORD FOR PENIS LENGTH WHAT THE HECK"
+        penisbox = discord.Embed(
+            title=f"{user.name} has a {penis_description} penis",
+            description = "8" + "="*penis_length + "D",
+            color = randint(0, 0xffffff),
+        )
+        penisbox.set_footer(text=footer)
+        await ctx.send(embed=penisbox)
+    
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if "give up" in message.content and message.author != self.bot.user:
+            await message.channel.send("Never gonna give you up, never gonna let you down,\nNever gonna run around and hurt you~\nhttps://youtu.be/dQw4w9WgXcQ")
+        elif ("together" in message.content or "tgt" in message.content) and message.author != self.bot.user:
+            await message.channel.send("Together forever and never to part\nTogether forever we two\nAnd don't you know I would move heaven and earth\nTo be together forever with you~\nhttps://youtu.be/yPYZpwSpKmA")
     
     @commands.Cog.listener()
     async def on_ready(self):
@@ -168,7 +223,7 @@ class Fun(commands.Cog):
             if line.strip() != "":
                 Fun.puns.append(line)
         my_cog = self.bot.get_cog("Fun")
-        Fun.description = "Bored? Come here!\n{} total commands".format(len(my_cog.get_commands()))
+        Fun.description = "Bored? Come here!\n`{} total commands`".format(len(my_cog.get_commands()))
         print("All quotes successfully loaded!")
 
 def setup(bot):
