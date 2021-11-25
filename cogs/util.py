@@ -5,27 +5,36 @@ from random import randint
 from googletrans import Translator
 import json
 import re
+import pymongo
+from bson.objectid import ObjectId
 
 class Utils(commands.Cog):
     description = ""
     gtrans_langs = {}
+    CONNECTION_STRING = "connection string"
+    client, db, general, prefixes = None, None, None, None
 
     def __init__(self, bot):
         self.bot = bot
         self.translator = Translator()
         with open("gtrans_languages.json", encoding="utf-8") as file:
             Utils.gtrans_langs = json.load(file)
-        with open("prefixes.json", "r") as f:
-            self.prefixes = json.load(f)
+        #Get the prefixes
+        Utils.client = pymongo.MongoClient(Utils.CONNECTION_STRING)
+        Utils.db = Utils.client.mtbDatabase
+        Utils.general = Utils.db.general
+        Utils.prefixes = Utils.general.find_one(ObjectId("617bd86efd5cdcd0c9dd7020"))
 
     @commands.command(name="help", brief="help [category]/[command]", description="Displays the full lists of commands available for this bot.")
     async def help(self, ctx, *args):
         emojis = {"Music" : ":guitar:",
                   "Fun" : ":zany_face:",
                   "Utils" : ":tools:",
+                  "Snipe" : ":gun:",
                   "Moderation": ":robot:",
                   "Games": ":game_die:"
                   }
+        cmd_prefix = Utils.prefixes[str(ctx.guild.id)]
         if len(args) != 0:
             name = args[0].lower().capitalize()
             for c in self.bot.cogs:
@@ -40,14 +49,14 @@ class Utils(commands.Cog):
                         description=command_text[:-1],
                         color=discord.Color.gold(),
                     )                
-                    categorybox.set_footer(text=f"type {self.prefixes[str(ctx.guild.id)]}help <command> for more info on a specific command.\nuse -mtb before each command!")
+                    categorybox.set_footer(text=f"type {cmd_prefix}help <command> for more info on a specific command.\nuse {cmd_prefix} before each command!")
                     await ctx.send(embed=categorybox)
                     break
                 else: #The argument is a command name
                     for comm in self.bot.get_cog(c).get_commands():
                         if comm.name == name.lower():
                             commandbox = discord.Embed(
-                                title=f"{self.prefixes[str(ctx.guild.id)]}{comm.name} info",
+                                title=f"{cmd_prefix}{comm.name} info",
                                 description=f"**Description:**\n{comm.description}",
                                 color=discord.Color.gold(),
                             )
@@ -56,7 +65,7 @@ class Utils(commands.Cog):
                             if comm.aliases != None:
                                 aliases.extend(comm.aliases)
                             commandbox.add_field(name="Aliases", value=", ".join(aliases), inline=False)
-                            commandbox.add_field(name="How to use:", value=f"`{self.prefixes[str(ctx.guild.id)]}{comm.brief}`", inline=False)
+                            commandbox.add_field(name="How to use:", value=f"`{cmd_prefix}{comm.brief}`", inline=False)
                             commandbox.set_footer(text="Usage Syntax: <required> [optional]")
                             await ctx.send(embed=commandbox)
                             return
@@ -73,9 +82,13 @@ class Utils(commands.Cog):
         for c in self.bot.cogs:
             category = self.bot.get_cog(c)
             helpbox.add_field(name=f"{emojis[c]} {c}\n", value=category.description, inline=False)
-        helpbox.set_footer(text=f"Type {self.prefixes[str(ctx.guild.id)]}help [command] for more info on a specific command.\nYou can also type {self.prefixes[str(ctx.guild.id)]}help [category] for more info on a category.")
+        helpbox.set_footer(text=f"Type {cmd_prefix}help [command] for more info on a specific command.\nYou can also type {cmd_prefix}help [category] for more info on a category.")
         await ctx.send(embed=helpbox)
-     
+        
+    @help.error
+    async def help_error(self, ctx, error):
+        print(error)
+    
     @commands.command(name="serverinfo", aliases=["si"], brief="serverinfo", description="Displays some information about the current server.")
     async def serverinfo(self, ctx):
         guild = ctx.message.guild
@@ -179,15 +192,15 @@ class Utils(commands.Cog):
         
     @commands.command(name="prefix", brief="prefix <new prefix>", description="Set a custom prefix for me in your server.\nPrefix must be less than 10 characters long!\nIf you want a space after the prefix, enclose the new prefix in double quotes,eg.\"lol \"")
     @commands.has_permissions(administrator=True)
+    @commands.guild_only()
     async def prefix(self, ctx, custom_prefix):
         if len(custom_prefix) > 10:
             await ctx.send("Hey don't give me a long ass prefix, keep it under 10 characters please.")
             return
         if re.match(r"\"[A-Za-z\s]+\"", custom_prefix):
             custom_prefix = re.search(r"\"[A-Za-z\s]+\"", custom_prefix).group(1)
-        self.prefixes[str(ctx.guild.id)] = custom_prefix
-        with open("prefixes.json", "w") as f:
-            json.dump(self.prefixes, f, indent=4)
+        Utils.general.update_one({"_id": ObjectId("617bd86efd5cdcd0c9dd7020")}, {"$set": {str(ctx.guild.id): custom_prefix}})
+        Utils.prefixes = Utils.general.find_one(ObjectId("617bd86efd5cdcd0c9dd7020"))
         #Change nickname of bot
         bot_member = await ctx.guild.fetch_member(self.bot.user.id)
         bot_name = bot_member.display_name
@@ -195,37 +208,38 @@ class Utils(commands.Cog):
             close_bracket_pos = bot_name.index("]")
             bot_name = bot_name[(close_bracket_pos+1):]
         await bot_member.edit(nick=f"[{custom_prefix}]{bot_name}")
-        await ctx.send(f"Prefix for this server changed to **\"{custom_prefix}\"**\nEg. {custom_prefix}help")
+        await ctx.send(f"Prefix for this server changed to `{custom_prefix}`\nEg. {custom_prefix}help")
     
     @prefix.error
     async def prefix_error(self, ctx, error):
+        print(error)
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("Sorry, only server admins can change my prefix, and sadly you are not one.")
     
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
+        #Add default prefix to file
+        Utils.general.update_one({"_id": ObjectId("617bd86efd5cdcd0c9dd7020")}, {"$set": {str(guild.id): "-mtb "}})
+        Utils.prefixes = Utils.general.find_one(ObjectId("617bd86efd5cdcd0c9dd7020"))
+            
         for channel in guild.text_channels:
             if channel.permissions_for(guild.me).send_messages:
                 await channel.send("Hello! Thanks for adding me to your server. Have fun!")
                 await self.help(channel)
-                bot_activity = discord.Game(name="-mtb help | Used in {} servers".format(str(len(self.bot.guilds))))
-                await self.bot.change_presence(activity=bot_activity)
                 break
-        #Add default prefix to file
-        with open("prefixes.json", "r") as f:
-            prefixes = json.load(f)
-        prefixes[str(guild.id)] = "-mtb "
-        with open("prefixes.json", "r") as f:
-            prefixes = json.dump(prefixes, f, indent=4)
+        bot_activity = discord.Game(name="-mtb help | Used in {} servers".format(str(len(self.bot.guilds))))
+        await self.bot.change_presence(activity=bot_activity)
             
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         #Remove entry from prefixes file
-        with open("prefixes.json", "r") as f:
-            prefixes = json.load(f)
-        prefixes.pop(str(guild.id))
-        with open("prefixes.json", "w") as f:
-            prefixes = json.dump(prefixes, f, indent=4)
+        Utils.general.update_one({"_id": ObjectId("617bd86efd5cdcd0c9dd7020")}, {"$unset": {str(guild.id): ""}})
+        Utils.prefixes = Utils.general.find_one(ObjectId("617bd86efd5cdcd0c9dd7020"))        
+    
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if self.bot.user.mentioned_in(message):
+            await message.channel.send(f"Hello! my prefix in this server is: {Utils.prefixes.get(str(message.guild.id), '-mtb ')}")
 
     @commands.Cog.listener()
     async def on_ready(self):

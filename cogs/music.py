@@ -144,6 +144,7 @@ class Music(commands.Cog):
                 queue.append(track_info)
                 
             if not bot_voice_client.is_playing():
+                self.queue_stopped = False
                 self.current_track_start_time = time.time()
                 self.track_duration = audio_duration
                 bot_voice_client.play(discord.FFmpegPCMAudio(audio_url, **Music.ffmpeg_options), after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), bot.loop))
@@ -296,11 +297,11 @@ class Music(commands.Cog):
         
     @commands.Cog.listener()
     async def on_button_click(self, interaction):
-        total_pages = int(len(self.queue)//10 + 1)
+        total_pages = int(-(len(self.queue) // -10))
         if interaction.component.custom_id == "queue1": #First button
             self.queue_page = 1
         elif interaction.component.custom_id == "queue2": #Back button
-            if self.queue_page != 0:
+            if self.queue_page != 1:
                 self.queue_page -= 1
         elif interaction.component.custom_id == "queue3": #Next button
             if self.queue_page != total_pages:
@@ -335,6 +336,7 @@ class Music(commands.Cog):
     @commands.check(is_in_same_vc)
     async def clear(self, ctx):
         self.queue.clear()
+        self.queue_index = 0
         await ctx.send("Queue cleared!")
         
     @commands.command(name="jump", brief="jump <number>", description="Skips to the specified track in the queue.")
@@ -401,9 +403,18 @@ class Music(commands.Cog):
     @commands.command(name="shuffle", brief="shuffle", description="Shuffles the queue.")
     @commands.check(is_in_same_vc)
     async def shuffle(self, ctx):
+        bot_voice_client = discord.utils.get(ctx.bot.voice_clients, guild=ctx.guild)
+        if bot_voice_client is not None and bot_voice_client.is_playing():
+            current_song = self.queue.pop(self.queue_index)
         random.shuffle(self.queue)
+        if bot_voice_client is not None and bot_voice_client.is_playing():
+            self.queue.insert(self.queue_index, current_song)
         await ctx.send("Queue shuffled!")
-        
+    
+    @shuffle.error
+    async def shuffle_error(self, ctx, error):
+        print(error)
+    
     @commands.command(name="move", brief="move <song position in queue> <new position>", description="Moves the specified song to a specific position in the queue.")
     @commands.check(is_in_same_vc)
     async def move(self, ctx, original_pos: int, new_pos: int):
@@ -469,7 +480,7 @@ class Music(commands.Cog):
         #To detect when a bot leaves a voice channel
         if member == "MegaTrollBot#0395" and before.channel is not None and after.channel is None:
             self.queue.clear()
-            #await member.guild.system_channel.send("Queue cleared!")
+            await member.guild.system_channel.send("Queue cleared!")
         
     
     @commands.Cog.listener()

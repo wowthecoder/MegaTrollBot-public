@@ -47,10 +47,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
     async def from_url(cls, url, *, loop=None):
         loop = loop or asyncio.get_event_loop()
         if not url.startswith("https://"):
-            #url = "https://youtu.be/" + ytdl.extract_info(f"ytsearch:{url}", download=False)['entries'][0]['id'] 
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"ytsearch:{url}", download=False))
         else:
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
+        if 'entries' in data:
+            #take first item from a playlist
+            #playlist is in the form of a dictionary, eg. data = {'entries': [all the song names here]}
+            data = data['entries'][0]
         audio_url = data["formats"][0]["url"]
         audio_ytid = data["id"]
         audio_duration = data['duration']

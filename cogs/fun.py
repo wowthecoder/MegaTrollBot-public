@@ -80,6 +80,10 @@ class Fun(commands.Cog):
         meme_embed.set_footer(text=f"👍 {meme_info[3]} 💬 {meme_info[4]}")
         await ctx.send(embed=meme_embed)
 
+    @meme.error
+    async def meme_error(self, ctx, error):
+        print(error)
+
     @commands.command(name="pun", brief="pun", description="Generates a random pun!")
     async def pun(self, ctx):
         choice = randint(1,4)
@@ -200,13 +204,6 @@ class Fun(commands.Cog):
         )
         penisbox.set_footer(text=footer)
         await ctx.send(embed=penisbox)
-    
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if "give up" in message.content and message.author != self.bot.user:
-            await message.channel.send("Never gonna give you up, never gonna let you down,\nNever gonna run around and hurt you~\nhttps://youtu.be/dQw4w9WgXcQ")
-        elif ("together" in message.content or "tgt" in message.content) and message.author != self.bot.user:
-            await message.channel.send("Together forever and never to part\nTogether forever we two\nAnd don't you know I would move heaven and earth\nTo be together forever with you~\nhttps://youtu.be/yPYZpwSpKmA")
     
     @commands.Cog.listener()
     async def on_ready(self):

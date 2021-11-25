@@ -2,16 +2,23 @@ import discord
 from discord.ext import commands, tasks
 from datetime import date, datetime
 import json
+import pymongo
+from bson.objectid import ObjectId
 
 class Moderation(commands.Cog):
     description = ""
     servermute_list = []
+    CONNECTION_STRING = "connection string"
+    client, db, general, prefixes = None, None, None, None
     
     def __init__(self, bot):
         self.bot = bot
         self.countdown.start()
-        with open("prefixes.json", "r") as f:
-            self.prefixes = json.load(f)
+        #Get the prefixes
+        Moderation.client = pymongo.MongoClient(Moderation.CONNECTION_STRING)
+        Moderation.db = Moderation.client.mtbDatabase
+        Moderation.general = Moderation.db.general
+        Moderation.prefixes = Moderation.general.find_one(ObjectId("617bd86efd5cdcd0c9dd7020"))
         
     @commands.command(name="addrole", aliases=["ar"], brief="addrole <@user> <role name>", description="Duh, as you can see from the name of the command, I will add the specified role to the user. Do you really have to ask?")
     @commands.check_any(commands.has_permissions(manage_roles=True), commands.is_owner())
@@ -32,7 +39,7 @@ class Moderation(commands.Cog):
     async def addrole_error(self, ctx, error):
         print(error)
         if isinstance(error, commands.UserInputError):
-            await ctx.send(f"It's simple really. You need to type: `{self.prefixes[str(ctx.guild.id)]}addrole <@user> <role name>`, where `<@user>` is the member you want to give the role to, and `<role name>` is the **NAME** of the role you want to give(It must already exist in the server).\nRemember to spell the role name correctly and separate the terms with a space.")
+            await ctx.send(f"It's simple really. You need to type: `{Moderation.prefixes[str(ctx.guild.id)]}addrole <@user> <role name>`, where `<@user>` is the member you want to give the role to, and `<role name>` is the **NAME** of the role you want to give(It must already exist in the server).\nRemember to spell the role name correctly and separate the terms with a space.")
         
     @commands.command(name="removerole", aliases=["rr"], brief="removerole <@user> <role name>", description="Duh, as you can see from the name of the command, I will remove the specified role from the user. Do you really have to ask?")
     @commands.check_any(commands.has_permissions(manage_roles=True), commands.is_owner())
@@ -55,7 +62,7 @@ class Moderation(commands.Cog):
     async def removerole_error(self, ctx, error):
         print(error)
         if isinstance(error, commands.UserInputError):
-            await ctx.send(f"It's simple really. You need to type: `{self.prefixes[str(ctx.guild.id)]}removerole <@user> <role name>`, where `<@user>` is the member you want to remove the role from, and `<role name>` is the **NAME** of the role you want to remove(It must already be assigned to the user).\nRemember to spell the role name correctly and separate the terms with a space.")
+            await ctx.send(f"It's simple really. You need to type: `{Moderation.prefixes[str(ctx.guild.id)]}removerole <@user> <role name>`, where `<@user>` is the member you want to remove the role from, and `<role name>` is the **NAME** of the role you want to remove(It must already be assigned to the user).\nRemember to spell the role name correctly and separate the terms with a space.")
     
     async def convert_time_str(self, time: int):
         if time < 60:
@@ -74,7 +81,6 @@ class Moderation(commands.Cog):
             return f"{days}d {hours}h"
     
     @commands.command(name="servermute", aliases=["sm"], brief="servermute <@user> [duration in seconds]", description="Temporarily stops the user from sending messages in all text channels.\nThe default duration is 10s.\nOnly server administrators can do this!")
-    #@commands.has_permissions(administrator=True)
     @commands.check_any(commands.has_permissions(administrator=True), commands.is_owner()) #If single function, use @commands.check()
     async def servermute(self, ctx, user: discord.Member, duration: int=10):
         if user.id == ctx.message.author.id:
@@ -101,7 +107,21 @@ class Moderation(commands.Cog):
     @commands.command(name="mute", brief="mute <@user> [duration in seconds]", description="Temporarily mute someone in the current text channel. Default duration is 10 seconds.\nTime to SHUT UP!")
     @commands.check_any(commands.has_permissions(administrator=True), commands.is_owner())
     async def mute(self, ctx, user: discord.Member, duration: int=10):
-        await ctx.send("still in development.")
+        if user.id == ctx.message.author.id:
+            await ctx.send("BRO why are you even trying to mute yourself HAHAHAHAHAHAHA")
+            return
+        if user.id == 484673336534892546: #LOL gluck trying to mute the bot owner
+            await ctx.send("Do you even know who you are trying to mute? You are trying to mute the **BOT OWNER** himself!!\nDo you really think I will betray my creator? The answer is a huge __**NO**__")
+            return
+        if duration > 1209600:
+            await ctx.send("Nope I won't let you mute someone for more than 14 days.")
+            return
+        await ctx.channel.set_permissions(user, send_messages=False)
+        await ctx.send(f"Ok, you muted {user} in {ctx.channel.mention} for {duration_str}")
+        await user.send(f"You are muted in text channel {ctx.channel.name} of the server {ctx.guild} for {duration_str} by {ctx.message.author}.")
+        '''
+        STILL IN DEVELOPMENT
+        '''
         
     @commands.command(name="unmute", brief="unmute <@user>", description="Unmutes the user in all accessible text channels.")
     @commands.check_any(commands.has_permissions(administrator=True), commands.is_owner())

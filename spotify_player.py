@@ -5,8 +5,8 @@ import youtube_audio_dl
 import ctypes
 import ctypes.util
 
-client_id = "Your client id here"
-client_secret = "Your client secret here"
+client_id = "client id here"
+client_secret = "client secret here"
 client_credentials_manager = SpotifyClientCredentials(client_id=client_id, client_secret=client_secret)
 spotify = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
